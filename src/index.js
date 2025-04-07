@@ -22,12 +22,8 @@ async function accessSecretVersion(name) {
   });
 
   // Extract the payload as a string.
-  const payload = version.payload.data.toString("utf8");
-
-  return payload;
+  return version.payload.data.toString("utf8");
 }
-
-/* Add functionality here */
 
 (async () => {
   const app = new App({
