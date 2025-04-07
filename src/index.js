@@ -1,4 +1,11 @@
 const { App } = require("@slack/bolt");
+const {
+  selectCommandModal,
+  helpMessage,
+  requestCommandView,
+  submitCommandView,
+  unrecognizedCommandMessage,
+} = require("./blocks.js"); // Import the modal function
 
 const { SecretManagerServiceClient } = require("@google-cloud/secret-manager");
 
@@ -28,64 +35,94 @@ async function accessSecretVersion(name) {
     token: await accessSecretVersion("bot-token"),
   });
 
-  app.command("/reverb", async ({ command, ack, client }) => {
-    // Acknowledge the command request
-    await ack();
+  app.command("/reverb", async ({ command, ack, client, respond }) => {
+    console.log("Opening modal for command:", JSON.stringify(command, null, 2));
 
     try {
-      // Open a modal
-      await client.views.open({
-        trigger_id: command.trigger_id,
-        view: {
-          type: "modal",
-          callback_id: "modal_callback",
-          title: {
-            type: "plain_text",
-            text: "Feedback Modal",
-          },
-          blocks: [
-            {
-              type: "input",
-              block_id: "feedback_block",
-              label: {
-                type: "plain_text",
-                text: "Your Feedback",
-              },
-              element: {
-                type: "plain_text_input",
-                action_id: "feedback_input",
-              },
-            },
-          ],
-          submit: {
-            type: "plain_text",
-            text: "Submit",
-          },
-        },
-      });
+      await ack();
+
+      // Get the first word of the command text
+      const commandInputs = command.text.trim().split(" ");
+      const [selectedCommand, ...commandArgs] = commandInputs;
+      if (!selectedCommand) {
+        await client.views.open(selectCommandModal(command));
+      } else if (selectedCommand === "help") {
+        // Respond with a help message
+        await respond(helpMessage());
+      } else {
+        const view = determineViewForCommand(selectedCommand, commandArgs);
+        if (!view) {
+          // Fallback to help if the command is not recognized
+          await respond(unrecognizedCommandMessage());
+        } else {
+          await client.views.open({
+            trigger_id: command.trigger_id,
+            view,
+          });
+        }
+      }
     } catch (error) {
-      console.error("Error opening modal:", error);
+      console.error("Error executing command:", JSON.stringify(error, null, 2));
     }
   });
 
-  app.view("modal_callback", async ({ ack, body, view, client }) => {
-    // Acknowledge the view submission
+  app.action("command_select", async ({ ack, body, client }) => {
     await ack();
 
-    // Extract the feedback input
-    const feedback = view.state.values.feedback_block.feedback_input.value;
+    const selectedCommand = body.actions[0].selected_option.value;
 
-    // Log or process the feedback
-    console.log(`Feedback received: ${feedback}`);
+    // Update the modal with the selected command's view
+    await client.views.update({
+      view_id: body.view.id,
+      view: determineViewForCommand(selectedCommand),
+    });
+  });
 
-    // Optionally send a message back to the user
+  app.view("request_feedback", async ({ ack, body, view, client }) => {
+    await ack();
+
+    const selectedUsers =
+      view.state.values.user_selection.users_select.selected_users;
+    const targetUser = body.user.id; // The user who initiated the request
+
+    console.log(
+      `Request feedback from: ${selectedUsers} for user ${targetUser}`
+    );
     try {
-      await client.chat.postMessage({
-        channel: body.user.id,
-        text: "Thank you for your feedback!",
-      });
+      // Send a message to each selected user
+      for (const user of selectedUsers) {
+        await client.chat.postMessage({
+          channel: user,
+          text: `<@${user}>, please provide feedback for <@${targetUser}> with command \`/reverb submit <@${targetUser}>\`.`,
+        });
+      }
+      console.log(`Feedback requests sent to: ${selectedUsers}`);
     } catch (error) {
-      console.error("Error sending message:", error);
+      console.error("Error sending feedback requests:", error);
+    }
+  });
+
+  app.view("submit_feedback", async ({ ack, body, view, client }) => {
+    await ack();
+
+    const selectedUser =
+      view.state.values.user_selection.user_select.selected_user;
+    const feedback = view.state.values.feedback_input.feedback_text.value;
+    const senderUserId = body.user.id; // The user who submitted the feedback
+
+    console.log(`Submit feedback to ${selectedUser}: ${feedback}`);
+    try {
+      // Send the feedback as a direct message to the selected user
+      await client.chat.postMessage({
+        channel: selectedUser,
+        text: `You have received feedback from <@${senderUserId}>: "${feedback}"`,
+      });
+
+      console.log(
+        `Feedback sent to user: ${selectedUser} from ${senderUserId}`
+      );
+    } catch (error) {
+      console.error("Error sending feedback:", error);
     }
   });
 
@@ -94,3 +131,28 @@ async function accessSecretVersion(name) {
 
   console.log("⚡️ Bolt app is running!");
 })();
+
+const determineViewForCommand = (selectedCommand, commandArgs) => {
+  switch (selectedCommand) {
+    case "request":
+      return requestCommandView();
+    case "submit":
+      return submitCommandView(parseUser(commandArgs[0]));
+    default:
+      return undefined;
+  }
+};
+
+// <@U08LL6W3KBR|amodestduck>
+const parseUser = (userString) => {
+  if (!userString) {
+    return null;
+  }
+  const regex = /<@(\w+)/; // Matches <@USERID>
+  const match = userString.match(regex);
+  if (match && match[1]) {
+    return match[1]; // Return the user ID
+  } else {
+    return undefined; // Return undefined if no match found
+  }
+};
