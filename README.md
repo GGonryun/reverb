@@ -7,6 +7,25 @@ A slack bot for collecting and sharing feedback with members of your team.
 ## Deploy
 
 ```
+REGION=
+PROJECT_ID=
+BOT_TOKEN=
+CLIENT_SIGNING_SECRET=
+
+gcloud services enable \
+  artifactregistry.googleapis.com \
+  cloudbuild.googleapis.com \
+  run.googleapis.com \
+  secretmanager.googleapis.com
+
+echo -n $CLIENT_SIGNING_SECRET | gcloud secrets create client-signing-secret \
+  --replication-policy automatic \
+  --data-file -
+
+echo -n $BOT_TOKEN | gcloud secrets create bot-token \
+  --replication-policy automatic \
+  --data-file -
+
 gcloud run deploy reverb \
   --source . \
   --platform managed \
