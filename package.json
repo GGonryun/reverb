@@ -11,7 +11,11 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
+    "@google-cloud/datastore": "^9.2.1",
+    "@google-cloud/firestore": "^7.11.0",
     "@google-cloud/secret-manager": "^6.0.1",
-    "@slack/bolt": "^4.2.1"
+    "@slack/bolt": "^4.2.1",
+    "@slack/oauth": "^3.0.3",
+    "dotenv": "^16.4.7"
   }
 }
