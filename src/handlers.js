@@ -4,6 +4,9 @@ const {
   requestCommandView,
   submitCommandView,
   unrecognizedCommandMessage,
+  generalFeedbackForm,
+  traitsChecklistForm,
+  parseFeedback,
 } = require("./blocks.js");
 const { parseUser } = require("./utils.js");
 
@@ -12,7 +15,18 @@ const determineViewForCommand = (selectedCommand, commandArgs) => {
     case "request":
       return requestCommandView();
     case "submit":
-      return submitCommandView(parseUser(commandArgs[0]));
+      return submitCommandView()(parseUser(commandArgs?.at(0)));
+    default:
+      return undefined;
+  }
+};
+
+const determineFeedbackForm = (selectedFeedbackType) => {
+  switch (selectedFeedbackType) {
+    case "gen":
+      return generalFeedbackForm();
+    case "traits":
+      return traitsChecklistForm();
     default:
       return undefined;
   }
@@ -74,7 +88,7 @@ const requestFeedbackViewHandler = async ({ ack, body, view, client }) => {
     for (const user of selectedUsers) {
       await client.chat.postMessage({
         channel: user,
-        text: `<@${user}>, please provide feedback for <@${targetUser}> with command \`/reverb submit <@${targetUser}>\`.`,
+        text: `<@${user}>, please provide feedback for <@${targetUser}> with the following command:\n\`\`\`\n/reverb submit <@${targetUser}>\n\`\`\``,
       });
     }
     console.log(`Feedback requests sent to: ${selectedUsers}`);
@@ -83,20 +97,55 @@ const requestFeedbackViewHandler = async ({ ack, body, view, client }) => {
   }
 };
 
+const feedbackTypeActionHandler = async ({ ack, body, client }) => {
+  const selectedFeedbackType = body.actions[0].selected_option.value;
+
+  const updatedBlocks = determineFeedbackForm(selectedFeedbackType);
+
+  if (!updatedBlocks) {
+    console.error("Invalid feedback type selected");
+    await ack({
+      response_action: "errors",
+      errors: {
+        feedback_type_selection: "Unexpected feedback type selected.",
+      },
+    });
+  }
+
+  await ack();
+
+  // Update the modal with the new blocks
+  await client.views.update({
+    view_id: body.view.id,
+    view: submitCommandView(updatedBlocks)(),
+  });
+};
+
 const submitFeedbackViewHandler = async ({ ack, body, view, client }) => {
   await ack();
 
   const selectedUser =
     view.state.values.user_selection.user_select.selected_user;
-  const feedback = view.state.values.feedback_input.feedback_text.value;
   const senderUserId = body.user.id; // The user who submitted the feedback
+  const feedback = parseFeedback(view.state.values);
 
   console.log(`Submit feedback to ${selectedUser}: ${feedback}`);
+  const header = {
+    type: "plain_text",
+    text: `You have received ${feedback.label} feedback`,
+  };
+  const author = `Feedback from <@${senderUserId}>`;
   try {
     // Send the feedback as a direct message to the selected user
     await client.chat.postMessage({
       channel: selectedUser,
-      text: `You have received feedback from <@${senderUserId}>: "${feedback}"`,
+      blocks: [
+        { type: "header", text: header },
+        { type: "divider" },
+        ...feedback.body,
+        { type: "divider" },
+        { type: "markdown", text: author },
+      ],
     });
 
     console.log(`Feedback sent to user: ${selectedUser} from ${senderUserId}`);
@@ -110,4 +159,5 @@ module.exports = {
   commandSelectActionHandler,
   requestFeedbackViewHandler,
   submitFeedbackViewHandler,
+  feedbackTypeActionHandler,
 };

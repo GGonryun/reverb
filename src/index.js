@@ -2,7 +2,10 @@ const { App, ExpressReceiver } = require("@slack/bolt");
 const getConfig = require("./config.js");
 const {
   reverbCommandHandler,
+  // actions
   commandSelectActionHandler,
+  feedbackTypeActionHandler,
+  // views
   requestFeedbackViewHandler,
   submitFeedbackViewHandler,
 } = require("./handlers.js");
@@ -15,6 +18,8 @@ const {
   app.command("/reverb", reverbCommandHandler);
 
   app.action("command_select", commandSelectActionHandler);
+
+  app.action("feedback_type_select", feedbackTypeActionHandler);
 
   app.view("request_feedback", requestFeedbackViewHandler);
 
