@@ -5,8 +5,8 @@ const {
   submitCommandView,
   unrecognizedCommandMessage,
   generalFeedbackForm,
-  traitsChecklistForm,
   parseFeedback,
+  traitsListForm,
 } = require("./blocks.js");
 const { parseUser } = require("./utils.js");
 
@@ -26,7 +26,7 @@ const determineFeedbackForm = (selectedFeedbackType) => {
     case "gen":
       return generalFeedbackForm();
     case "traits":
-      return traitsChecklistForm();
+      return traitsListForm();
     default:
       return undefined;
   }
@@ -88,7 +88,38 @@ const requestFeedbackViewHandler = async ({ ack, body, view, client }) => {
     for (const user of selectedUsers) {
       await client.chat.postMessage({
         channel: user,
-        text: `<@${user}>, please provide feedback for <@${targetUser}> with the following command:\n\`\`\`\n/reverb submit <@${targetUser}>\n\`\`\``,
+        blocks: [
+          {
+            type: "header",
+            text: {
+              type: "plain_text",
+              text: "Your Feedback is Requested!",
+            },
+          },
+          { type: "divider" },
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: `<@${targetUser}> has requested your feedback to support their growth and development. Share your thoughts by clicking the button below.`,
+            },
+          },
+          {
+            type: "actions",
+            elements: [
+              {
+                type: "button",
+                text: {
+                  type: "plain_text",
+                  text: "Provide Feedback",
+                },
+                style: "primary",
+                value: targetUser,
+                action_id: "feedback_button",
+              },
+            ],
+          },
+        ],
       });
     }
     console.log(`Feedback requests sent to: ${selectedUsers}`);
@@ -127,12 +158,12 @@ const submitFeedbackViewHandler = async ({ ack, body, view, client }) => {
   const selectedUser =
     view.state.values.user_selection.user_select.selected_user;
   const senderUserId = body.user.id; // The user who submitted the feedback
-  const feedback = parseFeedback(view.state.values);
+  const feedback = parseFeedback(view);
 
   console.log(`Submit feedback to ${selectedUser}: ${feedback}`);
   const header = {
     type: "plain_text",
-    text: `You have received ${feedback.label} feedback`,
+    text: `You have received ${feedback.label} Feedback!`,
   };
   const author = `Feedback from <@${senderUserId}>`;
   try {
@@ -154,10 +185,21 @@ const submitFeedbackViewHandler = async ({ ack, body, view, client }) => {
   }
 };
 
+const feedbackButtonActionHandler = async ({ ack, body, client }) => {
+  // pop up the same modal we'd get for the /reverb command
+  await ack();
+
+  await client.views.open({
+    trigger_id: body.trigger_id,
+    view: submitCommandView()(body.actions[0].value),
+  });
+};
+
 module.exports = {
   reverbCommandHandler,
   commandSelectActionHandler,
   requestFeedbackViewHandler,
   submitFeedbackViewHandler,
   feedbackTypeActionHandler,
+  feedbackButtonActionHandler,
 };

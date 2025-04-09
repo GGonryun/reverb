@@ -5,6 +5,7 @@ const {
   // actions
   commandSelectActionHandler,
   feedbackTypeActionHandler,
+  feedbackButtonActionHandler,
   // views
   requestFeedbackViewHandler,
   submitFeedbackViewHandler,
@@ -20,6 +21,8 @@ const {
   app.action("command_select", commandSelectActionHandler);
 
   app.action("feedback_type_select", feedbackTypeActionHandler);
+
+  app.action("feedback_button", feedbackButtonActionHandler);
 
   app.view("request_feedback", requestFeedbackViewHandler);
 

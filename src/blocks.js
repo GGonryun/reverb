@@ -1,3 +1,5 @@
+const { capitalizeWords } = require("./utils");
+
 const selectCommandModal = (command) => ({
   trigger_id: command.trigger_id,
   view: {
@@ -126,7 +128,7 @@ const submitCommandView = (updatedBlocks) => (initialUser) => ({
           {
             text: {
               type: "plain_text",
-              text: "Traits Checklist",
+              text: "Traits List",
             },
             value: "traits",
           },
@@ -152,408 +154,336 @@ const helpMessage = () => ({
   response_type: "ephemeral", // Only visible to the user who typed the command
 });
 
-const strengthsQuestion = "What is one thing this person does really well?";
-const improvementQuestion =
-  "What is one thing they could do to be even more effective?";
-const contributionsQuestion = "How do they contribute to the team's success?";
-
 const generalFeedbackForm = () => [
   {
+    type: "divider",
+  },
+  {
+    type: "section",
+    text: {
+      type: "mrkdwn",
+      text: "*Help your teammate grow with thoughtful, specific feedback.*\n\nYou can respond to one, some, or all of the questions below — whatever feels most helpful. Be candid and honest. Don't feel pressured to answer every question. If you don't have meaningful feedback for a prompt, feel free to skip it. \n\nWhen writing your feedback, think about what will truly help your teammates improve and thrive. Be specific and focus on behaviors like what they're doing that works well, and what might be holding them back.",
+    },
+  },
+  {
+    type: "divider",
+  },
+  {
     type: "input",
-    block_id: "strengths_input",
+    optional: true,
+    block_id: "habits_input",
     label: {
       type: "plain_text",
-      text: strengthsQuestion,
+      text: "What habits or actions do you notice that help them succeed?",
     },
     element: {
       type: "plain_text_input",
-      action_id: "strengths_text",
+      action_id: "habits_text",
+      multiline: true,
       placeholder: {
         type: "plain_text",
-        text: "Write about their strengths...",
+        text: "Share specific behaviors that contribute to their success...",
       },
     },
   },
   {
     type: "input",
-    block_id: "improvement_input",
+    optional: true,
+    block_id: "growth_input",
     label: {
       type: "plain_text",
-      text: improvementQuestion,
+      text: "What is one habit or action they could adopt to be even more effective?",
     },
     element: {
       type: "plain_text_input",
-      action_id: "improvement_text",
+      action_id: "growth_text",
+      multiline: true,
       placeholder: {
         type: "plain_text",
-        text: "Write about areas for improvement...",
+        text: "Suggest something that could increase their effectiveness...",
       },
     },
   },
   {
     type: "input",
-    block_id: "team_contribution_input",
+    optional: true,
+    block_id: "invisible_value_input",
     label: {
       type: "plain_text",
-      text: contributionsQuestion,
+      text: "What value do they bring to themselves, their work, or their team that might not be immediately visible?",
     },
     element: {
       type: "plain_text_input",
-      action_id: "team_contribution_text",
+      action_id: "invisible_value_text",
+      multiline: true,
       placeholder: {
         type: "plain_text",
-        text: "Write about their contributions to the team...",
+        text: "Call out the unseen or underappreciated things they bring...",
+      },
+    },
+  },
+  {
+    type: "input",
+    optional: true,
+    block_id: "additional_input",
+    label: {
+      type: "plain_text",
+      text: "Is there anything else you'd like to add that you couldn't fit into one of the above questions?",
+    },
+    element: {
+      type: "plain_text_input",
+      action_id: "additional_text",
+      multiline: true,
+      placeholder: {
+        type: "plain_text",
+        text: "Leave any final thoughts, shout-outs, or suggestions here...",
       },
     },
   },
 ];
 
-const traitsChecklistForm = () => [
+const categoryOptions = {
+  work_execution: [
+    { text: "Delivers high-quality work", value: "high_quality_work" },
+    { text: "Meets deadlines reliably", value: "meets_deadlines" },
+    { text: "Takes ownership of their work", value: "takes_ownership" },
+    {
+      text: "Balances speed and attention to detail",
+      value: "balances_speed_detail",
+    },
+    { text: "Manages scope effectively", value: "manages_scope" },
+  ],
+  collaboration_communication: [
+    { text: "Communicates clearly", value: "communicates_clearly" },
+    { text: "Listens actively and respectfully", value: "listens_actively" },
+    {
+      text: "Responds to feedback constructively",
+      value: "responds_to_feedback",
+    },
+    { text: "Keeps others in the loop", value: "keeps_others_in_loop" },
+    {
+      text: "Supports cross-functional teammates",
+      value: "supports_teammates",
+    },
+  ],
+  team_culture: [
+    { text: "Uplifts team morale", value: "uplifts_morale" },
+    { text: "Mentors or supports others", value: "mentors_supports" },
+    { text: "Lives up to our values", value: "lives_up_to_values" },
+    { text: "Open to new ideas and perspectives", value: "open_to_ideas" },
+    {
+      text: "Proactively identifies and solves problems",
+      value: "solves_problems",
+    },
+  ],
+  technical_problem_solving: [
+    { text: "Writes clean, maintainable code", value: "clean_code" },
+    { text: "Makes sound technical decisions", value: "sound_decisions" },
+    { text: "Contributes to code reviews", value: "code_reviews" },
+    { text: "Seeks and shares technical knowledge", value: "shares_knowledge" },
+    { text: "Designs with security in mind", value: "security_design" },
+  ],
+  customer_product_focus: [
+    { text: "Understands user needs", value: "understands_user_needs" },
+    { text: "Aligns work with product goals", value: "aligns_with_goals" },
+    { text: "Prioritizes impact over output", value: "prioritizes_impact" },
+    { text: "Helps bridge product/engineering gaps", value: "bridges_gaps" },
+    {
+      text: "Makes security tradeoffs thoughtfully",
+      value: "security_tradeoffs",
+    },
+  ],
+};
+
+const categoryLabels = {
+  work_execution: "Work Execution",
+  collaboration_communication: "Collaboration & Communication",
+  team_culture: "Team Culture",
+  technical_problem_solving: "Technical Problem Solving",
+  customer_product_focus: "Customer & Product Focus",
+};
+
+const categoryDescriptions = {
+  work_execution:
+    "How well does this person execute their work? Do they deliver high-quality work on time, and take ownership of their projects?",
+  collaboration_communication:
+    "How well does this person communicate and collaborate with others? Do they listen actively, respond to feedback, and keep others informed?",
+  team_culture:
+    "How well does this person contribute to team culture? Do they uplift team morale, mentor others, and live up to our values?",
+  technical_problem_solving:
+    "How well does this person solve technical problems? Do they write clean code, make sound decisions, and contribute to code reviews?",
+  customer_product_focus:
+    "How well does this person focus on customer and product needs? Do they understand user needs, align work with goals, and prioritize impact?",
+};
+
+const traitsListForm = () => [
+  {
+    type: "divider",
+  },
   {
     type: "section",
     block_id: "description",
     text: {
       type: "mrkdwn",
-      text: "*Select at most 3 traits for each section.*",
+      text: "*Help your teammate grow with thoughtful, specific feedback.*\n\nYou can select up to 3 strengths and 3 areas of improvement for each section below. Be candid and honest. Don't feel pressured to select options for every category. If you don't have meaningful feedback for a section, feel free to skip it.\n\nWhen making your selections, think about what will truly help your teammates improve and thrive. Focus on specific behaviors like what they're doing well, and where they might benefit from growth.",
     },
   },
   {
-    type: "input",
-    block_id: "work_execution",
-    label: {
-      type: "plain_text",
-      text: "Work & Execution",
-    },
-    element: {
-      type: "checkboxes",
-      action_id: "work_execution_select",
-      options: [
-        {
-          text: {
-            type: "plain_text",
-            text: "Delivers high-quality work",
-          },
-          value: "high_quality_work",
-        },
-        {
-          text: {
-            type: "plain_text",
-            text: "Meets deadlines reliably",
-          },
-          value: "meets_deadlines",
-        },
-        {
-          text: {
-            type: "plain_text",
-            text: "Takes ownership of their work",
-          },
-          value: "takes_ownership",
-        },
-        {
-          text: {
-            type: "plain_text",
-            text: "Balances speed and attention to detail",
-          },
-          value: "balances_speed_detail",
-        },
-        {
-          text: {
-            type: "plain_text",
-            text: "Manages scope effectively",
-          },
-          value: "manages_scope",
-        },
-      ],
-    },
+    type: "divider",
   },
-  {
-    type: "input",
-    block_id: "collaboration_communication",
-    label: {
-      type: "plain_text",
-      text: "Collaboration & Communication",
-    },
-    element: {
-      type: "checkboxes",
-      action_id: "collaboration_communication_select",
-      options: [
-        {
-          text: {
-            type: "plain_text",
-            text: "Communicates clearly",
-          },
-          value: "communicates_clearly",
+  ...Object.keys(categoryOptions)
+    .map((category, index) => [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*${categoryLabels[category]}* — ${categoryDescriptions[category]}`,
         },
-        {
-          text: {
-            type: "plain_text",
-            text: "Listens actively and respectfully",
-          },
-          value: "listens_actively",
+      },
+      {
+        type: "input",
+        block_id: `${category}_strengths`,
+        optional: true,
+        label: {
+          type: "plain_text",
+          text: `Strengths`,
         },
-        {
-          text: {
+        element: {
+          type: "multi_static_select",
+          action_id: `${category}_strengths_select`,
+          placeholder: {
             type: "plain_text",
-            text: "Responds to feedback constructively",
+            text: "Select strengths",
           },
-          value: "responds_to_feedback",
+          options: categoryOptions[category].map((option) => ({
+            text: { type: "plain_text", text: option.text },
+            value: option.value,
+          })),
+          max_selected_items: 3,
         },
-        {
-          text: {
+      },
+      {
+        type: "input",
+        optional: true,
+        block_id: `${category}_improvement`,
+        label: {
+          type: "plain_text",
+          text: `Areas of Improvement`,
+        },
+        element: {
+          type: "multi_static_select",
+          action_id: `${category}_improvement_select`,
+          placeholder: {
             type: "plain_text",
-            text: "Keeps others in the loop",
+            text: "Select areas for improvement",
           },
-          value: "keeps_others_in_loop",
+          options: categoryOptions[category].map((option) => ({
+            text: { type: "plain_text", text: option.text },
+            value: option.value,
+          })),
+          max_selected_items: 3,
         },
-        {
-          text: {
-            type: "plain_text",
-            text: "Supports cross-functional teammates",
-          },
-          value: "supports_teammates",
-        },
-      ],
-    },
-  },
-  {
-    type: "input",
-    block_id: "team_culture",
-    label: {
-      type: "plain_text",
-      text: "Team & Culture",
-    },
-    element: {
-      type: "checkboxes",
-      action_id: "team_culture_select",
-      options: [
-        {
-          text: {
-            type: "plain_text",
-            text: "Uplifts team morale",
-          },
-          value: "uplifts_morale",
-        },
-        {
-          text: {
-            type: "plain_text",
-            text: "Mentors or supports others",
-          },
-          value: "mentors_supports",
-        },
-        {
-          text: {
-            type: "plain_text",
-            text: "Lives up to our values",
-          },
-          value: "lives_up_to_values",
-        },
-        {
-          text: {
-            type: "plain_text",
-            text: "Open to new ideas and perspectives",
-          },
-          value: "open_to_ideas",
-        },
-        {
-          text: {
-            type: "plain_text",
-            text: "Proactively identifies and solves problems",
-          },
-          value: "solves_problems",
-        },
-      ],
-    },
-  },
-  {
-    type: "input",
-    block_id: "technical_problem_solving",
-    label: {
-      type: "plain_text",
-      text: "Technical & Problem Solving (for engineers)",
-    },
-    element: {
-      type: "checkboxes",
-      action_id: "technical_problem_solving_select",
-      options: [
-        {
-          text: {
-            type: "plain_text",
-            text: "Not Applicable",
-          },
-          value: "not_applicable",
-        },
-        {
-          text: {
-            type: "plain_text",
-            text: "Writes clean, maintainable code",
-          },
-          value: "clean_code",
-        },
-        {
-          text: {
-            type: "plain_text",
-            text: "Makes sound technical decisions",
-          },
-          value: "sound_decisions",
-        },
-        {
-          text: {
-            type: "plain_text",
-            text: "Contributes to code reviews",
-          },
-          value: "code_reviews",
-        },
-        {
-          text: {
-            type: "plain_text",
-            text: "Seeks and shares technical knowledge",
-          },
-          value: "shares_knowledge",
-        },
-        {
-          text: {
-            type: "plain_text",
-            text: "Designs with security in mind",
-          },
-          value: "security_design",
-        },
-      ],
-    },
-  },
-  {
-    type: "input",
-    block_id: "customer_product_focus",
-    label: {
-      type: "plain_text",
-      text: "Customer & Product Focus",
-    },
-    element: {
-      type: "checkboxes",
-      action_id: "customer_product_focus_select",
-      options: [
-        {
-          text: {
-            type: "plain_text",
-            text: "Understands user needs",
-          },
-          value: "understands_user_needs",
-        },
-        {
-          text: {
-            type: "plain_text",
-            text: "Aligns work with product goals",
-          },
-          value: "aligns_with_goals",
-        },
-        {
-          text: {
-            type: "plain_text",
-            text: "Prioritizes impact over output",
-          },
-          value: "prioritizes_impact",
-        },
-        {
-          text: {
-            type: "plain_text",
-            text: "Helps bridge product/engineering gaps",
-          },
-          value: "bridges_gaps",
-        },
-        {
-          text: {
-            type: "plain_text",
-            text: "Makes security tradeoffs thoughtfully",
-          },
-          value: "security_tradeoffs",
-        },
-      ],
-    },
-  },
+      },
+      index < Object.keys(categoryOptions).length - 1
+        ? { type: "divider" }
+        : null,
+    ])
+    .flat()
+    .filter(Boolean),
 ];
 
 const parseQuestionAnswer = (qas) =>
-  qas.map(({ q, a }, index) => ({
+  qas.map(({ question, answer }, index) => ({
     type: "section",
     text: {
       type: "mrkdwn",
-      text: `*${index + 1}. ${q}*\n_${a}_`,
+      text: `*${index + 1}. ${question}*\n${answer}`,
     },
   }));
 
-const parseGeneralFeedback = (values) => {
-  const strengths = values.strengths_input.strengths_text.value;
-  const improvement = values.improvement_input.improvement_text.value;
-  const teamContribution =
-    values.team_contribution_input.team_contribution_text.value;
+const parseGeneralFeedback = (view) => {
+  const values = view.state.values;
+  const blocks = view.blocks;
+  const answers = [];
+
+  for (const block of blocks) {
+    if (block.type === "input" && block.element?.type === "plain_text_input") {
+      const blockId = block.block_id;
+      const actionId = block.element.action_id;
+      const question = block.label.text;
+      const answer = values[blockId]?.[actionId]?.value;
+
+      if (answer && answer.trim() !== "") {
+        answers.push({ question, answer });
+      }
+    }
+  }
 
   return {
     label: "General",
-    body: parseQuestionAnswer([
-      { q: strengthsQuestion, a: strengths },
-      { q: improvementQuestion, a: improvement },
-      { q: contributionsQuestion, a: teamContribution },
-    ]),
+    body: parseQuestionAnswer(answers),
   };
 };
 
-const parseTraitsChecklist = (values) => {
-  console.log(JSON.stringify(values, null, 2));
-  const selector = (option) => option.text.text;
-  const workExecution =
-    values.work_execution.work_execution_select.selected_options.map(selector);
+const parseTraitsList = (view) => {
+  const values = view.state.values;
+  console.log("values", JSON.stringify(values, null, 2));
+  // List of block IDs for categories
+  const categories = Object.keys(categoryOptions);
 
-  const collaborationCommunication =
-    values.collaboration_communication.collaboration_communication_select.selected_options.map(
-      selector
+  // Function to extract selected options for strengths and areas of improvement
+  const getSelections = (category, type) => {
+    const blockId = `${category}_${type}`;
+    return values[blockId][`${blockId}_select`].selected_options.map(
+      (option) => option.value
     );
-  const teamCulture =
-    values.team_culture.team_culture_select.selected_options.map(selector);
+  };
 
-  const technicalProblemSolving =
-    values.technical_problem_solving.technical_problem_solving_select.selected_options.map(
-      selector
-    );
-
-  const customerProductFocus =
-    values.customer_product_focus.customer_product_focus_select.selected_options.map(
-      selector
-    );
-
-  return {
+  const result = {
     label: "Traits",
-    body: parseQuestionAnswer([
-      {
-        q: "Work & Execution",
-        a: workExecution.join(", "),
-      },
-      {
-        q: "Collaboration & Communication",
-        a: collaborationCommunication.join(", "),
-      },
-      {
-        q: "Team & Culture",
-        a: teamCulture.join(", "),
-      },
-      {
-        q: "Technical & Problem Solving (for engineers)",
-        a: technicalProblemSolving.join(", "),
-      },
-      {
-        q: "Customer & Product Focus",
-        a: customerProductFocus.join(", "),
-      },
-    ]),
+    body: parseQuestionAnswer(
+      categories.flatMap((category) => {
+        const strengthSelections = getSelections(category, "strengths");
+        const improvementSelections = getSelections(category, "improvement");
+        if (!strengthSelections.length && !improvementSelections.length)
+          return [];
+        const strengthsText = strengthSelections
+          .map((s) => capitalizeWords(s.replace(/_/g, " ")))
+          .join("\n\t- ");
+        const improvementText = improvementSelections
+          .map((i) => capitalizeWords(i.replace(/_/g, " ")))
+          .join("\n\t-");
+        const strengths = !!strengthsText
+          ? `_Strengths:_\n\t- ${strengthsText}`
+          : "";
+        const improvement = !!improvementText
+          ? `_Areas for Improvement:_\n\t- ${improvementText}`
+          : "";
+
+        return [
+          {
+            question: `${categoryLabels[category]}:`,
+            answer: `${strengths}${
+              !!strengths && !!improvement ? "\n" : ""
+            }${improvement}`,
+          },
+        ];
+      })
+    ),
   };
+
+  return result;
 };
 
-const parseFeedback = (values) => {
+const parseFeedback = (view) => {
   const selectedFeedbackType =
-    values.feedback_type_selection.feedback_type_select.selected_option.value;
+    view.state.values.feedback_type_selection.feedback_type_select
+      .selected_option.value;
   switch (selectedFeedbackType) {
     case "gen":
-      return parseGeneralFeedback(values);
+      return parseGeneralFeedback(view);
     case "traits":
-      return parseTraitsChecklist(values);
+      return parseTraitsList(view);
     default:
       return `UNKNOWN FEEDBACK TYPE: ${selectedFeedbackType}`;
   }
@@ -571,6 +501,6 @@ module.exports = {
   submitCommandView,
   unrecognizedCommandMessage,
   generalFeedbackForm,
-  traitsChecklistForm,
+  traitsListForm,
   parseFeedback,
 };

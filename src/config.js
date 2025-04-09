@@ -76,8 +76,6 @@ const installerOptions = {
   installPath: "/slack/install",
   redirectUriPath: "/slack/oauth_redirect",
   stateVerification: "true",
-  // callbackOptions,
-  // renderHtmlForInstallPath,
   stateStore,
 };
 
@@ -139,13 +137,23 @@ const installationStore = {
   },
 };
 
+// Use the environment variable if it exists, otherwise use the secret manager
+const environmentSecret = async (envKey) => {
+  const value = process.env[envKey];
+  if (value) {
+    console.log(`Using ${envKey} from environment variable`, value);
+    return value;
+  }
+  return await accessSecretVersion(envKey);
+};
+
 const getConfig = async () => {
-  const [signingSecret, clientId, clientSecret, stateSecret] =
+  const [clientId, clientSecret, signingSecret, stateSecret] =
     await Promise.all([
-      accessSecretVersion("slack-signing-secret"),
-      accessSecretVersion("slack-client-id"),
-      accessSecretVersion("slack-client-secret"),
-      accessSecretVersion("slack-state-secret"),
+      environmentSecret("SLACK_CLIENT_ID"),
+      environmentSecret("SLACK_CLIENT_SECRET"),
+      environmentSecret("SLACK_SIGNING_SECRET"),
+      environmentSecret("SLACK_STATE_SECRET"),
     ]);
 
   const scopes = ["chat:write", "users:read", "im:write", "commands"];

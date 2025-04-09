@@ -14,19 +14,19 @@ gcloud services enable \
   run.googleapis.com \
   secretmanager.googleapis.com
 
-echo -n $SLACK_SIGNING_SECRET | gcloud secrets create slack-signing-secret \
+echo -n $SLACK_SIGNING_SECRET | gcloud secrets create SLACK_SIGNING_SECRET \
   --replication-policy automatic \
   --data-file -
 
-echo -n $SLACK_CLIENT_ID | gcloud secrets create slack-client-id \
+echo -n $SLACK_CLIENT_ID | gcloud secrets create SLACK_CLIENT_ID \
   --replication-policy automatic \
   --data-file -
 
-echo -n $SLACK_CLIENT_SECRET | gcloud secrets create slack-client-secret \
+echo -n $SLACK_CLIENT_SECRET | gcloud secrets create SLACK_CLIENT_SECRET \
   --replication-policy automatic \
   --data-file -
 
-echo -n $SLACK_STATE_SECRET | gcloud secrets create slack-state-secret \
+echo -n $SLACK_STATE_SECRET | gcloud secrets create SLACK_STATE_SECRET \
   --replication-policy automatic \
   --data-file -
 
